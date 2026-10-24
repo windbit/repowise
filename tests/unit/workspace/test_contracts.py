@@ -415,15 +415,25 @@ class TestHttpExtractor:
         assert consumers[0].contract_id == "http::POST::/path"
         assert consumers[0].meta["client"] == "wrapper"
 
-    def test_js_wrapper_consumer_default_get_and_interior_param(self, tmp_path: Path) -> None:
+    def test_js_wrapper_without_a_verb_matches_any_method_and_interior_param(self, tmp_path: Path) -> None:
+        # A wrapper's own default method is invisible at the call site, so the verb is left open.
         self._write_file(tmp_path, "src/api.ts", """
             fetchJSON(`${BASE}/health`);
             fetchJSON(`${BASE}/systems/${Number(id)}`);
         """)
         contracts = HttpExtractor().extract(tmp_path, "client")
         ids = {c.contract_id for c in contracts if c.role == "consumer"}
-        assert "http::GET::/health" in ids
-        assert "http::GET::/systems/{param}" in ids
+        assert "http::*::/health" in ids
+        assert "http::*::/systems/{param}" in ids
+
+    def test_js_wrapper_verb_in_the_name_still_wins(self, tmp_path: Path) -> None:
+        self._write_file(tmp_path, "src/api.ts", """
+            apiPost('/key/update', body);
+            apiGet('/key/info');
+        """)
+        contracts = HttpExtractor().extract(tmp_path, "client")
+        ids = {c.contract_id for c in contracts if c.role == "consumer"}
+        assert ids == {"http::POST::/key/update", "http::GET::/key/info"}
 
     def test_js_wrapper_method_signal_without_http_name(self, tmp_path: Path) -> None:
         self._write_file(tmp_path, "src/api.ts", """

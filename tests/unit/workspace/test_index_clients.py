@@ -246,7 +246,7 @@ class TestNameLookalikesAreRejected:
         """Documents the defect being removed, so the gain is not hypothetical."""
         ctx = ScanContext("frontend", "src/lib/cache.ts", ".ts", DECOY_TS, {})
         assert _ids(JsClientsDialect().extract(ctx)) == {
-            "http::GET::/users/me",
+            "http::*::/users/me",
             "http::GET::/things/all",
         }
 

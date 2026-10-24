@@ -121,7 +121,7 @@ def consumer_contracts(
             continue
         if rooted_only and not is_rooted_url(url):
             continue
-        method = m.method or method_from_callee(m.callee)
+        method = m.method or method_from_callee(m.callee, default="*" if m.client == "wrapper" else "GET")
         c = build_consumer_contract(
             ctx,
             method=method.upper(),
