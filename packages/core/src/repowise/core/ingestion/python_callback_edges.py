@@ -42,6 +42,9 @@ _Key = tuple[str, str]
 def resolve_callback_bindings(graph: Any, parsed_files: dict[str, Any]) -> int:
     """Add ``calls`` edges from attribute invokers to the functions their setters received."""
     modules = _python_modules(parsed_files)
+    test_paths = {
+        path for path, parsed in parsed_files.items() if getattr(getattr(parsed, "file_info", None), "is_test", False)
+    }
     setters: dict[str, list[_Key]] = defaultdict(list)
     invokers: dict[_Key, list[tuple[str, int]]] = defaultdict(list)
     returns_ref: dict[str, set[str]] = {}
@@ -51,7 +54,7 @@ def resolve_callback_bindings(graph: Any, parsed_files: dict[str, Any]) -> int:
     added = 0
     for path, tree in modules.items():
         for caller_id, setter_name, arg_names in _setter_calls(path, tree, setters, returns_ref):
-            key = _setter_key(graph, caller_id, setter_name, setters)
+            key = _setter_key(graph, caller_id, setter_name, setters, test_paths, path in test_paths)
             if key is None or key not in invokers:
                 continue
             for arg_name in arg_names:
@@ -213,8 +216,18 @@ def _scopes(path: str, tree: ast.Module):
                 yield f"{class_id}::{method.name}", method, class_id
 
 
-def _setter_key(graph: Any, caller_id: str, setter_name: str, setters: dict[str, list[_Key]]) -> _Key | None:
+def _setter_key(
+    graph: Any,
+    caller_id: str,
+    setter_name: str,
+    setters: dict[str, list[_Key]],
+    test_paths: set[str],
+    caller_is_test: bool,
+) -> _Key | None:
     candidates = setters.get(setter_name, [])
+    if not caller_is_test:
+        # A test double that redeclares the setter must not make production wiring ambiguous.
+        candidates = [key for key in candidates if key[0].split("::", 1)[0] not in test_paths]
     if caller_id in graph:
         named = [
             key for key in candidates if graph.has_edge(caller_id, f"{key[0]}::{setter_name}")

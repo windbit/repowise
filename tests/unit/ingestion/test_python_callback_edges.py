@@ -42,7 +42,7 @@ def _build(tmp_path: Path, sources: dict[str, str]):
             size_bytes=len(text),
             git_hash="",
             last_modified=datetime.now(),
-            is_test=False,
+            is_test=rel.startswith("tests/"),
             is_config=False,
             is_api_contract=False,
             is_entry_point=False,
@@ -146,3 +146,17 @@ class Runner:
 """
     graph = _build(tmp_path, {"adapter.py": adapter, "runner.py": runner})
     assert ("adapter.py::Adapter::direct", "runner.py::Runner::handle") not in _callback_edges(graph)
+
+
+def test_a_test_double_redeclaring_the_setter_does_not_block_production_wiring(tmp_path: Path) -> None:
+    runner = """\
+class Runner:
+    async def handle(self, event):
+        return event
+
+    def start(self, adapter):
+        adapter.set_handler(self.handle)
+"""
+    double = _ADAPTER.replace("class Adapter", "class FakeAdapter")
+    graph = _build(tmp_path, {"adapter.py": _ADAPTER, "tests/test_fake.py": double, "runner.py": runner})
+    assert ("adapter.py::Adapter::process", "runner.py::Runner::handle") in _callback_edges(graph)
