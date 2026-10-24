@@ -146,15 +146,17 @@ class TestPythonRefusals:
         assert declared_types(body, "python") == {}
 
     def test_a_generic_annotation_is_refused(self) -> None:
-        """``x: Optional[Crawler]`` is an Optional, not a Crawler.
+        """``x: list[Spider]`` is a list, not a Spider."""
+        body = "def run(b: list[Spider]):\n    b.stop()"
+        assert "b" not in declared_types(body, "python")
 
-        Unwrapping the payload would type ``x`` as something it provably is
-        not, and the validator would happily accept the result.
-        """
-        body = "def run(a: Optional[Crawler], b: list[Spider]):\n    a.stop()"
+    def test_a_nullable_annotation_types_its_value(self) -> None:
+        """A method called on ``Optional[T]`` / ``T | None`` runs on the ``T``: None has no methods."""
+        body = "def run(a: Optional[Crawler], b: Spider | None, c: None | Spider):\n    a.stop()"
         types = declared_types(body, "python")
-        assert "a" not in types
-        assert "b" not in types
+        assert types.get("a") == "Crawler"
+        assert types.get("b") == "Spider"
+        assert types.get("c") == "Spider"
 
     def test_a_factory_call_is_not_a_construction(self) -> None:
         """``x = Foo.bar()`` calls a class; it does not build a ``Foo``."""
