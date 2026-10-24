@@ -76,10 +76,20 @@ class TestNpmNames:
         assert ("web", "shared", "package.json", "npm_package", "shared") in deps
         assert all(source != "app" or kind == "npm_workspace" for source, _t, _m, kind, _p in deps)
 
-    def test_workspace_protocol_is_never_a_sibling(self, tmp_path: Path) -> None:
+    def test_workspace_protocol_links_a_sibling_checked_out_apart(self, tmp_path: Path) -> None:
+        # A git submodule member left unchecked-out in the consumer: the sibling repo is the package.
         lib, web = tmp_path / "lib", tmp_path / "web"
         _json(lib / "package.json", {"name": "@acme/ui"})
         _json(web / "package.json", {"dependencies": {"@acme/ui": "workspace:*"}})
+        assert _deps({"lib": lib, "web": web}) == [
+            ("web", "lib", "package.json", "npm_package", "@acme/ui")
+        ]
+
+    def test_workspace_protocol_to_its_own_member_is_not_a_sibling(self, tmp_path: Path) -> None:
+        lib, web = tmp_path / "lib", tmp_path / "web"
+        _json(lib / "package.json", {"name": "@acme/ui"})
+        _json(web / "package.json", {"workspaces": ["ui"], "dependencies": {"@acme/ui": "workspace:*"}})
+        _json(web / "ui" / "package.json", {"name": "@acme/ui"})
         assert _deps({"lib": lib, "web": web}) == []
 
     def test_file_path_from_a_workspace_member_resolves_from_its_own_dir(
