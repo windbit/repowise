@@ -593,6 +593,23 @@ class ResolveMixin:
                 if callable(done):
                     done(phase)
 
+    def _resolve_callback_bindings(self, progress: Any | None = None) -> None:
+        """Emit ``calls`` edges from a stored handler's invoker to the function the setter received."""
+        from ..python_callback_edges import resolve_callback_bindings
+
+        phase = "graph.callbacks"
+        if progress:
+            progress.on_phase_start(phase, None)
+        try:
+            resolve_callback_bindings(self._graph, self._parsed_files)
+        except Exception as exc:
+            log.warning("callback_binding_failed", error=str(exc))
+        finally:
+            if progress:
+                done = getattr(progress, "on_phase_done", None)
+                if callable(done):
+                    done(phase)
+
     def _heritage_parents(self) -> dict[str, set[str]]:
         """``{type symbol id: parent type symbol ids}`` from the built graph.
 

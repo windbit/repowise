@@ -609,6 +609,7 @@ class GraphBuilder(MetricsMixin, ResolveMixin, EdgesMixin, SerializeMixin, Rehyd
         # --- Phase 4: Base method → the implementations that answer for it ---
         # Post-pass: needs heritage resolved and reads only the graph.
         self._resolve_override_dispatch(progress=progress)
+        self._resolve_callback_bindings(progress=progress)
 
         # Which symbols a package exports, read off the imports just resolved.
         try:
