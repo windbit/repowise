@@ -435,6 +435,18 @@ class TestHttpExtractor:
         ids = {c.contract_id for c in contracts if c.role == "consumer"}
         assert ids == {"http::POST::/key/update", "http::GET::/key/info"}
 
+    def test_js_wrapper_with_type_arguments(self, tmp_path: Path) -> None:
+        self._write_file(tmp_path, "src/api.ts", """
+            const a = await apiGet<UserInfo>('/user/info', { query });
+            const b = await apiPostOk<{ token?: string }>('/key/update', body);
+            const c = await apiGet<Record<string, unknown>>(
+              '/team/info',
+            );
+        """)
+        contracts = HttpExtractor().extract(tmp_path, "client")
+        ids = {c.contract_id for c in contracts if c.role == "consumer"}
+        assert ids == {"http::GET::/user/info", "http::POST::/key/update", "http::GET::/team/info"}
+
     def test_js_wrapper_method_signal_without_http_name(self, tmp_path: Path) -> None:
         self._write_file(tmp_path, "src/api.ts", """
             send("/orders", { method: "PUT" });
