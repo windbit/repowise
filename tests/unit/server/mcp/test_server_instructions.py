@@ -38,3 +38,20 @@ def test_handshake_reports_the_repowise_version_not_the_sdk_version() -> None:
     options = mcp._mcp_server.create_initialization_options()
     assert options.server_name == "repowise"
     assert options.server_version == __version__
+
+
+def test_workspace_instructions_name_the_repos_and_the_cross_repo_entry(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from repowise.server.mcp_server import _server
+
+    config = SimpleNamespace(repos=[SimpleNamespace(alias="console"), SimpleNamespace(alias="litellm")])
+    monkeypatch.setattr(_server, "_detect_workspace", lambda _path: ("/ws", config, "console"))
+    try:
+        _server._describe_served_repos("/ws/console", workspace_mode=True)
+        text = mcp.instructions
+        assert "2 repositories of one workspace: console, litellm" in text
+        assert "cross_repo_impact" in text and 'repo="all"' in text
+    finally:
+        _server._describe_served_repos(None, workspace_mode=False)
+    assert mcp.instructions == _server._INSTRUCTIONS

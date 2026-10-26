@@ -677,35 +677,35 @@ class _RepowiseMCP(FastMCP):
             current_principal.reset(reset)
 
 
+_INSTRUCTIONS = (
+    "repowise indexes the code graph, git history and decisions of the "
+    "repositories it serves. Reach for it before text search: one call "
+    "replaces a round of grep and file reads, and it sees links grep cannot "
+    "(callers, subclasses, consumers in other repos). If unsure whether it "
+    "helps, try it first and grep to confirm.\n"
+    "- search_codebase(query) finds an identifier or literal: `lines` "
+    "(path, line, kind, text; definitions first) come from live files, and "
+    "`complete: true` means that is every match.\n"
+    '- get_context(targets=[symbol], include=["callers"]) shows who calls '
+    'it, include=["callees"] what it calls, include=["references"] every '
+    "use; a `complete` list is the whole edit set for a rename.\n"
+    "- get_risk before a non-trivial edit to a widely used file, "
+    "get_change_risk before committing a multi-file change, get_why before "
+    "changing an established pattern. Skip them for one-line fixes.\n"
+    "- get_answer(question) gives one cited answer; verify it by reading.\n"
+    "- Targets with uncommitted edits are flagged; the index is stale for "
+    "them until `repowise update --working-tree` runs.\n"
+    "In workspace mode, get_architecture and get_blast_radius are also "
+    "available. If the tools report that the repo has no index, tell the "
+    "user to run 'repowise init --yes --no-prose' in the repo root; it needs "
+    "no API key and makes no model calls. Suggest it, do not run it yourself."
+)
+
 mcp = _RepowiseMCP(
     "repowise",
     # Hosts that defer tool schemas show the model only tool names and this
     # string, so it says when to call; tests pin the key lines and a length cap.
-    instructions=(
-        "repowise indexes this repository's code graph, git history and "
-        "decisions. One call here often replaces several text searches and "
-        "file reads.\n"
-        "- Use search_codebase(query) to find an identifier or literal: it "
-        "returns `lines` (path, line, kind, text; definitions first) read from "
-        "live files, and `complete: true` means that is every match. Path-like "
-        "and concept queries rank files.\n"
-        '- Use get_context(targets=[symbol], include=["references"]) before a '
-        "rename or an update-all-callers change: it lists the definition, "
-        "imports and calls, and a `complete` list is the whole edit set.\n"
-        "- Use get_answer(question) for a how/where/why question: one cited "
-        "answer.\n"
-        "- Use get_risk before a non-trivial edit to a widely imported file, "
-        "get_change_risk before committing a multi-file change, and get_why "
-        "before changing an established pattern. Skip them for one-line fixes.\n"
-        "- Targets with uncommitted edits are flagged; the index is stale for "
-        "them until `repowise update --working-tree` runs.\n"
-        "In workspace mode, get_architecture and get_blast_radius are also "
-        "available. If the tools "
-        "report that the repo has no index, tell the user to run "
-        "'repowise init --yes --no-prose' in the repo root; it needs no API key "
-        "and makes no model calls. Suggest it, "
-        "do not run it yourself."
-    ),
+    instructions=_INSTRUCTIONS,
     lifespan=_lifespan,
 )
 # FastMCP takes no version argument, and without one the handshake's
@@ -716,6 +716,24 @@ mcp._mcp_server.version = __version__
 # ---------------------------------------------------------------------------
 # Server entry points
 # ---------------------------------------------------------------------------
+
+
+def _describe_served_repos(repo_path: str | None, workspace_mode: bool) -> None:
+    """Name the workspace repos in the instructions, so a deferred host knows which code the tools cover."""
+    ws_config = _detect_workspace(repo_path or os.getcwd())[1] if workspace_mode else None
+    if ws_config is None:
+        mcp._mcp_server.instructions = _INSTRUCTIONS
+        return
+    aliases = ", ".join(entry.alias for entry in ws_config.repos)
+    mcp._mcp_server.instructions = (
+        f"{_INSTRUCTIONS}\n"
+        f"This server covers {len(ws_config.repos)} repositories of one workspace: {aliases}. "
+        "For a question that crosses them (an HTTP route and its clients, a "
+        "package and its importers, a bug seen in one service and caused in "
+        "another) start with get_risk, whose cross_repo_impact lists the "
+        "consumers in the other repos, then get_context on each side; pass "
+        'repo="all" to search_codebase to search every repo.'
+    )
 
 
 def create_mcp_server(
@@ -738,6 +756,7 @@ def create_mcp_server(
     ensure_full_surface()
 
     apply_tool_selection(mcp, repo_path=repo_path, override=tools)
+    _describe_served_repos(repo_path, workspace_mode)
     return mcp
 
 
@@ -948,6 +967,7 @@ def run_mcp(
 
         ensure_full_surface()
         apply_tool_selection(mcp, repo_path=repo_path, override=tools)
+        _describe_served_repos(repo_path, workspace_mode)
     except BaseExceptionGroup as group:
         _raise_group_leaf(group, transport)
 
