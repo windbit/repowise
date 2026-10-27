@@ -423,6 +423,35 @@ def _record_opportunity(
         return
 
 
+#: Tool-input keys that name the file or directory a tool call touched.
+_TARGET_PATH_KEYS = ("file_path", "notebook_path", "path")
+
+
+def _cwd_for_tool_target(tool_input: object, cwd: str) -> str:
+    """The indexed repo a tool call actually touched, else the session cwd.
+
+    Hooks resolve the index from the session cwd, so a session in one repo that
+    reads a sibling repo (``../billing/api.py``) got that sibling judged against
+    its own index and fell silent. A target path inside a different indexed
+    repo moves the lookup there.
+    """
+    if not isinstance(tool_input, dict) or not cwd:
+        return cwd
+    for key in _TARGET_PATH_KEYS:
+        value = tool_input.get(key)
+        if not isinstance(value, str) or not value:
+            continue
+        target = Path(value) if Path(value).is_absolute() else Path(cwd) / value
+        start = target if target.is_dir() else target.parent
+        if not start.exists():
+            return cwd
+        target_root = _find_repo_root(start)
+        if target_root is not None and target_root != _find_repo_root(Path(cwd)):
+            return str(target_root)
+        return cwd
+    return cwd
+
+
 @lru_cache(maxsize=8)
 def _find_repo_root(cwd: Path) -> Path | None:
     """Walk up from cwd to find a directory with .repowise/.

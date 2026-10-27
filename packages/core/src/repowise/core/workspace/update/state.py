@@ -179,6 +179,15 @@ def _older_commit(repo_path: str, a: str, b: str) -> str | None:
     return older
 
 
+def _state_written_at(repo_path: Path) -> str | None:
+    """When ``state.json`` was last written: the moment the index reached its commit."""
+    try:
+        mtime = (repo_path / ".repowise" / "state.json").stat().st_mtime
+    except OSError:
+        return None
+    return datetime.fromtimestamp(mtime, UTC).isoformat()
+
+
 def sync_workspace_state_from_disk(
     workspace_root: Path,
     ws_config: WorkspaceConfig,
@@ -202,8 +211,16 @@ def sync_workspace_state_from_disk(
         if not abs_path.is_dir():
             continue
         disk_commit = read_state_commit(abs_path)
-        if disk_commit is not None and disk_commit != entry.last_commit_at_index:
+        if disk_commit is None:
+            continue
+        # `init .` and a repo-local update leave indexed_at unset or stale, and
+        # list_repos then reports an indexed repo as never indexed.
+        disk_indexed_at = _state_written_at(abs_path)
+        if disk_commit != entry.last_commit_at_index or (
+            disk_indexed_at is not None and disk_indexed_at != entry.indexed_at
+        ):
             entry.last_commit_at_index = disk_commit
+            entry.indexed_at = disk_indexed_at or entry.indexed_at
             changed.append(entry.alias)
     if changed and save_if_changed:
         try:

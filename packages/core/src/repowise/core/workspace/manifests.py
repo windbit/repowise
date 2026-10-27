@@ -319,7 +319,8 @@ def _scan_npm(index: _ManifestIndex, alias: str, repo_path: Path) -> _Deps:
                     continue
                 if version.startswith("file:"):
                     yield _path_dep(index, alias, base, version[5:], rel, "npm_local_path")
-                elif not version.startswith("workspace:"):
+                else:
+                    # `workspace:` names a sibling repo too when it is checked out apart (a submodule).
                     yield _name_dep(index, alias, "npm", name, version, rel, "npm_package")
 
         # Workspaces are globs; only those reaching outside the repo can name a sibling.

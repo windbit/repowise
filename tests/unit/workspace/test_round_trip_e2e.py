@@ -118,6 +118,21 @@ def test_drift_recovery(tmp_path: Path) -> None:
     changed = sync_workspace_state_from_disk(tmp_path, cfg)
     assert changed == ["alpha"]
     assert cfg.get_repo("alpha").last_commit_at_index == _head(a)
+    assert cfg.get_repo("alpha").indexed_at is not None
+
+
+def test_an_indexed_repo_without_indexed_at_gets_one(tmp_path: Path) -> None:
+    """``init .`` records the commit but not the time; list_repos must not read that as never indexed."""
+    a = _git_repo(tmp_path, "alpha")
+    (a / ".repowise").mkdir(exist_ok=True)
+    (a / ".repowise" / "state.json").write_text(json.dumps({"last_sync_commit": _head(a)}))
+    cfg = WorkspaceConfig(
+        repos=[RepoEntry(path="alpha", alias="alpha", last_commit_at_index=_head(a))],
+        default_repo="alpha",
+    )
+    assert sync_workspace_state_from_disk(tmp_path, cfg, save_if_changed=False) == ["alpha"]
+    assert cfg.get_repo("alpha").indexed_at is not None
+    assert sync_workspace_state_from_disk(tmp_path, cfg, save_if_changed=False) == []
 
 
 def test_add_fourth_repo_round_trip(tmp_path: Path) -> None:

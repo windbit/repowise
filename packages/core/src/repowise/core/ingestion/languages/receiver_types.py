@@ -92,6 +92,22 @@ _PY_CONSTRUCTED = re.compile(
 _PY_SELF_ANNOTATED = re.compile(
     rf"(?m)^[ \t]*(?P<member>self)\.(?P<name>[a-z_]\w*)\s*:\s*(?P<type>{_PY_TYPE})\s*(?=[=\n])"
 )
+# ``x: Optional[T]``, ``x: T | None`` and ``x: None | T``: the value, when there is
+# one, is a ``T``. Most instance attributes start as ``None``, so refusing these left
+# ``self.runner.handle()`` unresolved whenever ``self.runner: Optional[Runner]``.
+_PY_NULLABLE_SHAPES = (
+    rf"Optional\[\s*(?P<type>{_PY_TYPE})\s*\]",
+    rf"(?P<type>{_PY_TYPE})\s*\|\s*None\b",
+    rf"None\s*\|\s*(?P<type>{_PY_TYPE})\b",
+)
+_PY_NULLABLE_ANNOTATED = tuple(
+    re.compile(rf"(?<![\w.])(?P<name>[a-z_]\w*)\s*:\s*{shape}\s*(?=(?P<closer>[=,)\]\n]))")
+    for shape in _PY_NULLABLE_SHAPES
+)
+_PY_SELF_NULLABLE_ANNOTATED = tuple(
+    re.compile(rf"(?m)^[ \t]*(?P<member>self)\.(?P<name>[a-z_]\w*)\s*:\s*{shape}\s*(?=[=\n])")
+    for shape in _PY_NULLABLE_SHAPES
+)
 _PY_SELF_CONSTRUCTED = re.compile(
     r"(?m)^[ \t]*(?P<member>self)\.(?P<name>[a-z_]\w*)\s*=\s*(?P<type>[A-Z]\w*)\s*"
     r"\((?![^()]*\)\s*\.)"
@@ -343,7 +359,14 @@ _GO_FAMILY = (_GO_PARAM, _GO_SHORT_DECL, _GO_VAR_DECL, _GO_FIELD, _GO_EMBEDDED_F
 _KT_FAMILY = (_KT_ANNOTATED, _KT_CONSTRUCTED, _KT_CONSTRUCTED_LAMBDA)
 _SWIFT_FAMILY = (_SWIFT_ANNOTATED, _SWIFT_CONSTRUCTED)
 _DART_FAMILY = (_DART_TYPED, _DART_CONSTRUCTED)
-_PY_FAMILY = (_PY_ANNOTATED, _PY_CONSTRUCTED, _PY_SELF_ANNOTATED, _PY_SELF_CONSTRUCTED)
+_PY_FAMILY = (
+    _PY_ANNOTATED,
+    _PY_CONSTRUCTED,
+    _PY_SELF_ANNOTATED,
+    _PY_SELF_CONSTRUCTED,
+    *_PY_NULLABLE_ANNOTATED,
+    *_PY_SELF_NULLABLE_ANNOTATED,
+)
 _TS_FAMILY = (_TS_ANNOTATED, _TS_PARAMETER_PROPERTY, _TS_CONSTRUCTED)
 
 _LANGUAGE_PATTERNS: dict[str, tuple[re.Pattern[str], ...]] = {

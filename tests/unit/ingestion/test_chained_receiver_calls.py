@@ -374,7 +374,7 @@ class TestPyChainedFieldCalls:
         )
         assert not _chained(_edges(tmp_path, _py_chained_field_calls(app), _PY_LINKS))
 
-    def test_an_optional_field_yields_no_edge(self, tmp_path: Path) -> None:
+    def test_an_optional_field_types_its_value(self, tmp_path: Path) -> None:
         app = (
             "from typing import Optional\n"
             "from pkg.store import Store\n\n"
@@ -384,7 +384,7 @@ class TestPyChainedFieldCalls:
             "    def run(self):\n"
             "        return self.store.users.get('x')\n"
         )
-        assert not _chained(_edges(tmp_path, _py_chained_field_calls(app), _PY_LINKS))
+        assert _chained(_edges(tmp_path, _py_chained_field_calls(app), _PY_LINKS))
 
     def test_a_field_typed_twice_yields_no_edge(self, tmp_path: Path) -> None:
         app = (

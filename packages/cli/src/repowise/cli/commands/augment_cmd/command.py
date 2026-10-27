@@ -111,7 +111,7 @@ import click
 from repowise.cli._setup import configure_cli_logging
 from repowise.cli.agent_adapters import adapter_for
 
-from ._shared import HookResult, as_result, join_notices
+from ._shared import HookResult, _cwd_for_tool_target, as_result, join_notices
 from .bash_staleness import _handle_bash_post
 from .codex import _handle_codex_context_event, _handle_post_edit_use
 from .coverage_reingest import coverage_reingest_notice
@@ -205,7 +205,7 @@ def _run_augment(*, client: str | None = None, coverage_only: bool = False) -> N
     event = payload.get("hook_event_name", "")
     tool_name = payload.get("tool_name", "")
     tool_input = payload.get("tool_input", {})
-    cwd = payload.get("cwd", "")
+    cwd = _cwd_for_tool_target(tool_input, payload.get("cwd", ""))
 
     if coverage_only:
         _run_coverage_only(payload, client)

@@ -75,6 +75,9 @@ class RepoRegistry:
     """
 
     MAX_LOADED: int = 5
+    #: A workspace with more repos than the cap reopens databases on every
+    #: ``repo="all"`` call; set it to the repo count when memory allows.
+    MAX_LOADED_ENV = "REPOWISE_MAX_LOADED_REPOS"
 
     def __init__(
         self,
@@ -94,6 +97,11 @@ class RepoRegistry:
         self._vs_tasks: dict[str, asyncio.Task[None]] = {}
         # Serialises loads so concurrent callers can't overshoot the cap.
         self._load_lock = asyncio.Lock()
+        raw_cap = os.environ.get(self.MAX_LOADED_ENV, "").strip()
+        if raw_cap:
+            if not raw_cap.isdigit() or int(raw_cap) < 1:
+                raise ValueError(f"{self.MAX_LOADED_ENV} must be a positive integer, got {raw_cap!r}")
+            self.MAX_LOADED = int(raw_cap)
         self._validate_public_identities()
 
     def _identity_key(self, value: str | Path) -> str:

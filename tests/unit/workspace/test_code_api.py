@@ -432,6 +432,34 @@ class TestSurfaceScope:
             "code::@scope/lib::published"
         ]
 
+    async def test_a_wildcard_subpath_export_publishes_the_files_it_matches(
+        self, tmp_path: Path
+    ):
+        repo = tmp_path / "lib"
+        (repo / "src" / "node").mkdir(parents=True)
+        (repo / ".repowise").mkdir()
+        (repo / "package.json").write_text(
+            '{"name": "@scope/lib", "exports": {".": "./src/index.ts", "./*": "./src/*.ts"}}',
+            encoding="utf-8",
+        )
+        (repo / "src" / "index.ts").write_text(
+            "export function published(a: string) {}\n", encoding="utf-8"
+        )
+        (repo / "src" / "node" / "logger.ts").write_text(
+            "export function getLogger(a: string) {}\n", encoding="utf-8"
+        )
+        index = await make_repo_index(repo, _parse(repo), alias="lib")
+        try:
+            surface = build_code_surface(
+                {"lib": repo}, WorkspaceIndex({"lib": index}), make_exclude_predicate()
+            )
+        finally:
+            await index.close()
+        assert sorted(c.contract_id for c in surface.for_repo("lib")) == [
+            "code::@scope/lib::getLogger",
+            "code::@scope/lib::published",
+        ]
+
     async def test_an_ambiguous_dunder_all_name_is_refused_not_guessed(
         self, tmp_path: Path
     ):

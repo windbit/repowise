@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from typing import TYPE_CHECKING, Any
 
 from repowise.core.fsutils import repo_relative
@@ -403,6 +404,7 @@ def _surface_symbols(
         s
         for s in candidates
         if s.file_path in package.entry_files
+        or any("*" in entry and fnmatch(s.file_path, entry) for entry in package.entry_files)
         or (s.name in package.reexported and len(by_name[s.name]) == 1)
     ]
 

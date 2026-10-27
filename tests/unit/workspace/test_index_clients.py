@@ -200,12 +200,15 @@ class TestModuleLevelHelper:
             "http::GET::/snapshots/{param}/commits",
         }
 
-    def test_regex_dialect_yields_nothing_here(self):
-        """Fails before this change: this file's yield was 0."""
+    def test_regex_dialect_reads_the_typed_calls_without_a_verb(self):
+        """The text dialect sees ``publicFetch<T>(...)`` too, with the method left open."""
         ctx = ScanContext(
             "frontend", "src/lib/api/public-client.ts", ".ts", PUBLIC_CLIENT_TS, {}
         )
-        assert JsClientsDialect().extract(ctx) == []
+        assert _ids(JsClientsDialect().extract(ctx)) == {
+            "http::*::/snapshots/{param}/overview",
+            "http::*::/snapshots/{param}/commits",
+        }
 
 
 # Named exactly like an HTTP wrapper, reaches no sink. `_HTTP_NAME_RE` matches
@@ -246,7 +249,7 @@ class TestNameLookalikesAreRejected:
         """Documents the defect being removed, so the gain is not hypothetical."""
         ctx = ScanContext("frontend", "src/lib/cache.ts", ".ts", DECOY_TS, {})
         assert _ids(JsClientsDialect().extract(ctx)) == {
-            "http::GET::/users/me",
+            "http::*::/users/me",
             "http::GET::/things/all",
         }
 

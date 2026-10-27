@@ -339,3 +339,15 @@ class TestGetAllAliases:
         config = _make_workspace(tmp_path, ["a", "b", "c"])
         registry = RepoRegistry(tmp_path, config)
         assert registry.get_all_aliases() == ["a", "b", "c"]
+
+
+class TestLoadedCap:
+    def test_the_env_sets_how_many_repos_stay_open(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv(RepoRegistry.MAX_LOADED_ENV, "16")
+        registry = RepoRegistry(tmp_path, _make_workspace(tmp_path, ["a", "b"]))
+        assert registry.MAX_LOADED == 16
+
+    def test_an_unusable_cap_fails_loudly(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv(RepoRegistry.MAX_LOADED_ENV, "0")
+        with pytest.raises(ValueError, match="positive integer"):
+            RepoRegistry(tmp_path, _make_workspace(tmp_path, ["a", "b"]))
