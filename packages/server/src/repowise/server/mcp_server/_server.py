@@ -677,6 +677,33 @@ class _RepowiseMCP(FastMCP):
             current_principal.reset(reset)
 
 
+#: Streamable HTTP runs the lifespan once per client session, but the state it
+#: sets is module-global: one session closing used to tear down the registry
+#: under every other open session ("Repository not found" for any non-default
+#: repo). The first session brings the state up, the last one takes it down.
+_lifespan_users = 0
+_lifespan_lock = asyncio.Lock()
+_lifespan_cm: Any = None
+
+
+@asynccontextmanager
+async def _shared_lifespan(server: FastMCP):
+    global _lifespan_users, _lifespan_cm
+    async with _lifespan_lock:
+        if _lifespan_users == 0:
+            _lifespan_cm = _lifespan(server)
+            await _lifespan_cm.__aenter__()
+        _lifespan_users += 1
+    try:
+        yield
+    finally:
+        async with _lifespan_lock:
+            _lifespan_users -= 1
+            if _lifespan_users == 0:
+                cm, _lifespan_cm = _lifespan_cm, None
+                await cm.__aexit__(None, None, None)
+
+
 _INSTRUCTIONS = (
     "repowise indexes the code graph, git history and decisions of the "
     "repositories it serves. Reach for it before text search: one call "
@@ -706,7 +733,7 @@ mcp = _RepowiseMCP(
     # Hosts that defer tool schemas show the model only tool names and this
     # string, so it says when to call; tests pin the key lines and a length cap.
     instructions=_INSTRUCTIONS,
-    lifespan=_lifespan,
+    lifespan=_shared_lifespan,
 )
 # FastMCP takes no version argument, and without one the handshake's
 # serverInfo.version reports the installed ``mcp`` SDK's version.
