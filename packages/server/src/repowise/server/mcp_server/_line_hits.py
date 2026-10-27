@@ -32,6 +32,7 @@ from repowise.core.persistence.models import GraphNode
 from repowise.core.repo_config import load_repo_config
 from repowise.core.support_paths import file_population
 from repowise.core.test_paths import is_test_related_path
+from repowise.server.mcp_server import _state
 from repowise.server.mcp_server._budget import OmissionCollector, register_post_enforce
 from repowise.server.mcp_server._edit_sites import (
     _MAX_FILE_BYTES,
@@ -419,7 +420,10 @@ async def attach_line_hits(
 async def _attach(
     response: dict, query: str, mode: str, names: Container[str] | None, repo: str | None
 ) -> None:
-    if repo == "all" or mode == "path":
+    if mode == "path":
+        return
+    if repo == "all":
+        await _attach_all(response, query, mode, names)
         return
     literal = _literal(query)
     candidates = _identifier_candidates(query, mode, names)
@@ -493,6 +497,38 @@ async def _attach(
     if response["lines"]:
         _reconcile_symbol_miss(response, literal_scan=not sets)
 
+
+async def _attach_all(response: dict, query: str, mode: str, names: Container[str] | None) -> None:
+    """``lines`` over every workspace repo, each row tagged with its ``repo``.
+
+    A string the symbol index does not hold (an env key, a log message) is
+    otherwise invisible to ``repo="all"``: the federated stages search symbols
+    and pages only.
+    """
+    registry = _state._registry
+    rows: list[dict] = []
+    reasons: list[str] = []
+    for alias in registry.get_all_aliases() if registry else []:
+        part: dict = {}
+        try:
+            await _attach(part, query, mode, names, alias)
+        except Exception:
+            _log.warning("search_codebase: line hits failed for %s", alias, exc_info=True)
+            reasons.append(f"{alias}: line search failed")
+            continue
+        rows.extend({"repo": alias, **row} for row in part.get("lines", []))
+        if part.get("reasons"):
+            reasons.append(f"{alias}: " + "; ".join(part["reasons"]))
+    if not rows and not reasons:
+        return
+    if len(rows) > MAX_LINES:
+        reasons.append(f"{len(rows)} lines across repos; pass repo=<alias> for one repo's full list")
+    response["lines"] = rows[:MAX_LINES]
+    response["complete"] = not reasons
+    if reasons:
+        response["reasons"] = reasons
+    if response["lines"]:
+        _reconcile_symbol_miss(response, literal_scan=True)
 
 def _reconcile_symbol_miss(response: dict, *, literal_scan: bool) -> None:
     """Keep the symbol stage's miss advice from contradicting the lines found.
